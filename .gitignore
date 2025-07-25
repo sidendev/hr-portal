@@ -9,3 +9,4 @@ target
 /RUNNING_PID
 .g8/
 .DS_Store
+.env
