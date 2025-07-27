@@ -1,1 +1,16 @@
-GET   /     controllers.HomeController.index
+# Index
+GET     /               controllers.HomeController.index
+
+# Employees
+POST    /employees      controllers.EmployeesController.create
+GET     /employees      controllers.EmployeesController.listAll
+GET     /employees/:id  controllers.EmployeesController.findById(id: Int)
+DELETE  /employees/:id  controllers.EmployeesController.delete(id: Int)
+PATCH   /employees/:id  controllers.EmployeesController.update(id: Int)
+
+# Contracts
+GET     /contracts      controllers.ContractsController.listAll
+POST    /contracts      controllers.ContractsController.create
+GET     /contracts/:id  controllers.ContractsController.findById(id: Int)
+DELETE  /contracts/:id  controllers.ContractsController.delete(id: Int)
+PATCH   /contracts/:id  controllers.ContractsController.update(id: Int)
