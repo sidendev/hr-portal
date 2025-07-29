@@ -7,6 +7,9 @@ import play.api.libs.json._
 
 import models.EmployeesModel
 import repositories.EmployeesRepository
+import dtos.CreateEmployeeDto
+import utils.ApiError
+import validators.EmployeesValidator
 
 @Singleton
 class EmployeesController @Inject()(
@@ -15,11 +18,26 @@ class EmployeesController @Inject()(
 )(implicit ec: ExecutionContext) extends AbstractController(cc) {
 
   implicit val employeesFormat: OFormat[EmployeesModel] = Json.format[EmployeesModel]
+  implicit val createEmployeeDtoFormat: OFormat[CreateEmployeeDto] = Json.format[CreateEmployeeDto]
 
   def create: Action[JsValue] = Action.async(parse.json) { request =>
-    request.body.validate[EmployeesModel].fold(
-      errors => Future.successful(BadRequest(JsError.toJson(errors))),
-      employee => employeesRepo.create(employee).map(_ => Created(Json.toJson(employee)))
+    request.body.validate[CreateEmployeeDto].fold(
+      errors => Future.successful(ApiError.InvalidJson(JsError(errors)).toResult),
+      dto => {
+        val validationErrors = EmployeesValidator.validateCreate(dto)
+        if (validationErrors.nonEmpty)
+          Future.successful(ApiError.ValidationError(validationErrors).toResult)
+        else {
+          val employee = EmployeesModel(
+            firstName = dto.firstName,
+            lastName = dto.lastName,
+            email = dto.email,
+            mobileNumber = dto.mobileNumber,
+            address = dto.address
+          )
+          employeesRepo.create(employee).map(_ => Created(Json.toJson(employee)))
+        }
+      }
     )
   }
 
@@ -44,13 +62,29 @@ class EmployeesController @Inject()(
   }
 
   def update(id: Int): Action[JsValue] = Action.async(parse.json) { request =>
-    request.body.validate[EmployeesModel].fold(
-      errors => Future.successful(BadRequest(JsError.toJson(errors))),
-      updated => employeesRepo.update(id, updated).map {
-        case 0 => NotFound(Json.obj("error" -> "Employee not found"))
-        case _ => Ok(Json.toJson(updated))
+    request.body.validate[CreateEmployeeDto].fold(
+      errors => Future.successful(ApiError.InvalidJson(JsError(errors)).toResult),
+      dto => {
+        val validationErrors = EmployeesValidator.validateCreate(dto)
+        if (validationErrors.nonEmpty)
+          Future.successful(ApiError.ValidationError(validationErrors).toResult)
+        else {
+          val updatedEmployee = EmployeesModel(
+            id = Some(id),
+            firstName = dto.firstName,
+            lastName = dto.lastName,
+            email = dto.email,
+            mobileNumber = dto.mobileNumber,
+            address = dto.address
+          )
+          employeesRepo.update(id, updatedEmployee).map {
+            case 0 => NotFound(Json.obj("error" -> "Employee not found"))
+            case _ => Ok(Json.toJson(updatedEmployee))
+          }
+        }
       }
     )
   }
 }
+
 
