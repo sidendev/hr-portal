@@ -4,9 +4,10 @@ import play.api.mvc._
 import javax.inject._
 import scala.concurrent.{ExecutionContext, Future}
 import play.api.libs.json._
+
 import models.ContractsModel
 import repositories.ContractsRepository
-import dtos.CreateContractDto
+import dtos.{CreateContractDto, UpdateContractDto}
 import utils.ApiError
 import validators.ContractsValidator
 
@@ -18,6 +19,7 @@ class ContractsController @Inject()(
 
   implicit val contractFormat: OFormat[ContractsModel] = Json.format[ContractsModel]
   implicit val createDtoFormat: OFormat[CreateContractDto] = Json.format[CreateContractDto]
+  implicit val updateDtoFormat: OFormat[UpdateContractDto] = Json.format[UpdateContractDto]
 
   def create: Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[CreateContractDto].fold(
@@ -60,25 +62,25 @@ class ContractsController @Inject()(
   }
 
   def update(id: Int): Action[JsValue] = Action.async(parse.json) { request =>
-    request.body.validate[CreateContractDto].fold(
+    request.body.validate[UpdateContractDto].fold(
       errors => Future.successful(ApiError.InvalidJson(JsError(errors)).toResult),
       dto => {
-        val validationErrors = ContractsValidator.validateCreate(dto)
+        val validationErrors = ContractsValidator.validateUpdate(dto)
         if (validationErrors.nonEmpty)
           Future.successful(ApiError.ValidationError(validationErrors).toResult)
         else {
-          val updated = ContractsModel(
-            id = Some(id),
-            employeeId = dto.employeeId,
-            contractType = dto.contractType,
-            startDate = dto.startDate,
-            endDate = dto.endDate,
-            fullTime = dto.fullTime,
-            hoursPerWeek = dto.hoursPerWeek
-          )
-          contractsRepo.update(id, updated).map {
-            case 0 => NotFound(Json.obj("error" -> "Contract not found"))
-            case _ => Ok(Json.toJson(updated))
+          contractsRepo.findById(id).flatMap {
+            case Some(existing) =>
+              val merged = existing.copy(
+                contractType = dto.contractType.getOrElse(existing.contractType),
+                startDate = dto.startDate.getOrElse(existing.startDate),
+                endDate = dto.endDate.orElse(existing.endDate),
+                fullTime = dto.fullTime.getOrElse(existing.fullTime),
+                hoursPerWeek = dto.hoursPerWeek.orElse(existing.hoursPerWeek)
+              )
+              contractsRepo.update(id, merged).map(_ => Ok(Json.toJson(merged)))
+            case None =>
+              Future.successful(NotFound(Json.obj("error" -> "Contract not found")))
           }
         }
       }
