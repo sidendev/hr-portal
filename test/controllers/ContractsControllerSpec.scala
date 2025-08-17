@@ -18,7 +18,7 @@ class ContractsControllerSpec
       .configure(
         "slick.dbs.default.profile" -> "slick.jdbc.H2Profile$",
         "slick.dbs.default.db.driver" -> "org.h2.Driver",
-        "slick.dbs.default.db.url" -> "jdbc:h2:mem:contracts;DB_CLOSE_DELAY=-1",
+        "slick.dbs.default.db.url" -> "jdbc:h2:mem:contracts;MODE=MySQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1",
         "slick.dbs.default.db.user" -> "sa",
         "slick.dbs.default.db.password" -> "",
         "play.evolutions.db.default.autoApply" -> true
