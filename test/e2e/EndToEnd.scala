@@ -27,7 +27,8 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
   private var wdWait: WebDriverWait = _
 
   override def beforeAll(): Unit = {
-    val testCfg = ConfigFactory.load("application.test.conf")
+    // val testCfg = ConfigFactory.load("application.test.conf")
+    val testCfg = com.typesafe.config.ConfigFactory.parseResources("application.test.conf")
 
     app = new GuiceApplicationBuilder()
       .configure(
@@ -70,6 +71,23 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   // Viewing the list of employees
+  test("Employees list shows records (Alice, Bob)") {
+    driver.get(frontendBase)
+
+    val listContainer = wdWait.until(
+      ExpectedConditions.presenceOfElementLocated(By.cssSelector("[class*='divide-y']"))
+    )
+
+    wdWait.until { _ =>
+      listContainer.findElements(By.tagName("li")).size() >= 2
+    }
+
+    val items = listContainer.findElements(By.tagName("li")).asScala.map(_.getText).mkString(" | ")
+
+    assert(items.contains("Alice") && items.contains("Smith"), "Expected Alice Smith in the list")
+    assert(items.contains("Bob")   && items.contains("Johnson"), "Expected Bob Johnson in the list")
+
+  }
 
   // Adding a new permanent employee
 
