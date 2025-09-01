@@ -26,6 +26,9 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
   private var driver: WebDriver = _
   private var wdWait: WebDriverWait = _
 
+  // use pause to check visually browser as actions taken in test
+  private def pause(ms: Long): Unit = Thread.sleep(ms)
+
   override def beforeAll(): Unit = {
     // val testCfg = ConfigFactory.load("application.test.conf")
     val testCfg = com.typesafe.config.ConfigFactory.parseResources("application.test.conf")
@@ -89,7 +92,84 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
 
   }
 
-  // Adding a new permanent employee
+  // Adding a new employee
+  test("Add a new employee and see it in the list") {
+    driver.get(frontendBase)
+
+    // Open the dialog component
+    val addEmployeeBtn = wdWait.until(
+      ExpectedConditions.elementToBeClickable(By.xpath("//button[normalize-space(.)='Add employee']"))
+    )
+    addEmployeeBtn.click()
+
+    def fillByLabel(labelText: String, value: String): Unit = {
+      val label = wdWait.until(
+        ExpectedConditions.presenceOfElementLocated(
+          By.xpath(s"//label[translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz') = '${labelText.toLowerCase}']")
+        )
+      )
+      val forAttr = Option(label.getAttribute("for"))
+      val input: WebElement =
+        forAttr.flatMap { id =>
+          val byId = By.id(id)
+          Try(driver.findElement(byId)).toOption
+        }.getOrElse {
+          val candidates = label.findElements(By.xpath("(following::input | following::textarea)[1]"))
+          if (candidates.isEmpty) throw new NoSuchElementException(s"No input found for label '$labelText'")
+          candidates.get(0)
+        }
+      input.clear()
+      input.sendKeys(value)
+    }
+
+    // adding in test employee data
+    val now = System.currentTimeMillis()
+    val first = s"Test$now"
+    val last  = "Employee"
+    val email = s"test$now@example.com"
+    val mobile = "07000111222"
+    val address = "10 Downing St, London"
+
+    // filling in the form
+    fillByLabel("First name", first)
+    fillByLabel("Last name",  last)
+    fillByLabel("Email",      email)
+    fillByLabel("Mobile number", mobile)
+    fillByLabel("Address",    address)
+
+    // saving the new employee
+    val saveBtn = wdWait.until(
+      ExpectedConditions.elementToBeClickable(
+        By.xpath("//button[normalize-space(.)='Save' or @type='submit']")
+      )
+    )
+    saveBtn.click()
+
+    // pause for visual check
+    pause(1000)
+
+    // after save the dialog should close and the list should contain the new employee details
+    val listContainer = wdWait.until(
+      ExpectedConditions.presenceOfElementLocated(By.cssSelector("[class*='divide-y']"))
+    )
+
+    // pause for visual check
+    pause(1000)
+
+    // waiting till a li contains the new name OR email
+    wdWait.until { _ =>
+      val lis = listContainer.findElements(By.tagName("li")).asScala
+      lis.exists(li => li.getText.contains(first) && li.getText.contains(last)) ||
+        lis.exists(li => li.getText.contains(email))
+    }
+
+    // pause for visual check
+    pause(1000)
+
+    // final check
+    val combined = listContainer.findElements(By.tagName("li")).asScala.map(_.getText).mkString(" | ")
+    assert(combined.contains(first) && combined.contains(last), s"Expected new employee $first $last in list, got: $combined")
+  }
 
   // Adding a new contract employee
 
