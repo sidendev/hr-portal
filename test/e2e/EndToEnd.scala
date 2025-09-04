@@ -28,7 +28,6 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
   private var driver: WebDriver = _
   private var wdWait: WebDriverWait = _
 
-
   // ---------------------------------------------------------------------------
   // HELPERS:
 
@@ -38,34 +37,33 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
   private def clickable(by: By): WebElement =
     wdWait.until(ExpectedConditions.elementToBeClickable(by))
 
+  private def byTest(id: String): By =
+    By.cssSelector(s"[data-test='$id']")
+
   private def visible(by: By): WebElement =
     wdWait.until(ExpectedConditions.visibilityOfElementLocated(by))
 
-  private def clickButtonByText(txt: String): WebElement =
-    clickable(By.xpath(s"//button[normalize-space(.)='$txt']"))
-
-  private def fillByLabel(labelText: String, value: String): Unit = {
-    val label = visible(
-      By.xpath(s"//label[translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='${labelText.toLowerCase}']")
-    )
-    val input: WebElement =
-      Option(label.getAttribute("for"))
-        .flatMap(id => Try(driver.findElement(By.id(id))).toOption)
-        .getOrElse {
-          val cands = label.findElements(By.xpath("(following::input | following::textarea)[1]"))
-          if (cands.isEmpty) throw new NoSuchElementException(s"No input for label '$labelText'")
-          cands.get(0)
-        }
-    input.clear()
-    input.sendKeys(value)
+  private def visibleIn(el: WebElement, by: By): WebElement = {
+    wdWait.until(_ => {
+      val found = el.findElements(by).asScala.find(_.isDisplayed)
+      found.orNull
+    })
   }
 
-  private def setDateByName(name: String, yyyyMmDd: String): Unit = {
-    val input = clickable(By.cssSelector(s"input[name='$name']"))
-    // first try by typing
+  private def clickByTest(id: String): Unit =
+    clickable(byTest(id)).click()
+
+  private def typeByTest(id: String, value: String): Unit = {
+    val el = clickable(byTest(id))
+    el.clear()
+    el.sendKeys(value)
+  }
+
+  private def setDateByTest(id: String, yyyyMmDd: String): Unit = {
+    val input = clickable(byTest(id))
     input.clear()
     input.sendKeys(yyyyMmDd)
-    pause(120)
+    pause(80)
     val current = Option(input.getAttribute("value")).getOrElse("")
     if (current != yyyyMmDd) {
       val js = driver.asInstanceOf[JavascriptExecutor]
@@ -75,28 +73,6 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
           "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
         input, yyyyMmDd
       )
-      pause(120)
-    }
-  }
-
-  // using shadcn select for Employee - data-slot based
-  private def selectEmployeeFromDropdown(fullName: String): Unit = {
-    clickable(By.cssSelector("[data-slot='select-trigger']")).click()
-    visible(By.cssSelector("[data-slot='select-content']"))
-    clickable(By.xpath(s"//div[@data-slot='select-item' and contains(normalize-space(.), '$fullName')]")).click()
-  }
-
-  // set contractType = Contract
-  private def setContractTypeToContract(): Unit = {
-    val setViaSelect = Try {
-      val selectEl = visible(By.cssSelector("select[name='contractType']"))
-      new Select(selectEl).selectByVisibleText("Contract")
-      true
-    }.getOrElse(false)
-
-    if (!setViaSelect) {
-      // fallback
-      clickHard(clickable(By.xpath("//label[normalize-space(.)='Contract']")))
     }
   }
 
@@ -111,38 +87,57 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
     }
   }
 
-  private def goToContractsTab(): Unit = {
-    val selectors: Seq[By] = Seq(
-      By.cssSelector("button[value='contracts']"),
-      By.cssSelector("[role='tab'][data-value='contracts']"),
-      By.xpath("//button[@role='tab' and contains(normalize-space(.), 'Contracts')]"),
-      By.xpath("//*[(@role='tab' or self::button or self::a) and normalize-space(.)='Contracts']")
-    )
-    val tab = selectors.iterator.flatMap(sel => Try(clickable(sel)).toOption).toSeq.headOption
-      .getOrElse(throw new NoSuchElementException("Could not find any Contracts tab selector"))
+  // Tabs
+  private def goToEmployeesTab(): Unit = clickByTest("tab-employees")
+  private def goToContractsTab(): Unit = clickByTest("tab-contracts")
 
-    clickHard(tab)
-    pause(150)
+  // Lists
+  private def employeesList(): WebElement = visible(byTest("employees-list"))
+  private def contractsList(): WebElement = visible(byTest("contracts-list"))
+
+  // Dialogs
+  private def employeeDialog(): WebElement = visible(byTest("employee-dialog"))
+  private def contractDialog(): WebElement = visible(byTest("contract-dialog"))
+
+  private def selectEmployeeInContractDialog(fullName: String): Unit = {
+    val dlg = contractDialog()
+    val trigger = visibleIn(dlg, byTest("employee-select-trigger"))
+    clickHard(trigger)
+    visible(byTest("employee-select-content"))
+    val exact = By.cssSelector(s"""[data-test='employee-option'][data-value="$fullName"]""")
+    val opt = Try(clickable(exact)).getOrElse {
+      clickable(By.xpath(s"//*[@data-test='employee-option' and contains(@data-value, ${xpathQuote(fullName)})]"))
+    }
+    clickHard(opt)
   }
+
+  private def setContractTypeToContract(): Unit = {
+    val dlg = contractDialog()
+    val sel = visibleIn(dlg, byTest("contract-type"))
+    new Select(sel).selectByVisibleText("Contract")
+  }
+
+  private def contractRowForEmployee(fullName: String): WebElement = {
+    val list = contractsList()
+    wdWait.until(_ => {
+      val rows = list.findElements(By.cssSelector("[data-test='contract-item']")).asScala
+      rows.find { li =>
+        Try(li.findElement(byTest("contract-employee-name")).getText.contains(fullName)).getOrElse(false)
+      }.orNull
+    })
+  }
+
+  // XPATH safe quote utility - handles strings containing quotes
+  private def xpathQuote(s: String): String =
+    if (!s.contains("'")) s"'$s'"
+    else if (!s.contains("\"")) s""""$s""""
+    else {
+      val parts = s.split("'").map(p => s"'$p'")
+      ("concat(" + parts.mkString(", \"'\", ") + ")")
+    }
 
   private def findDialog(): WebElement =
     visible(By.cssSelector("div[role='dialog']"))
-
-  private def selectEmployeeFromDropdownInDialog(fullName: String): Unit = {
-    val dialog = findDialog()
-    val trigger = dialog.findElement(By.cssSelector("[data-slot='select-trigger']"))
-    clickHard(trigger)
-    visible(By.cssSelector("[data-slot='select-content']"))
-    val option = clickable(By.xpath(s"//div[@data-slot='select-item' and contains(normalize-space(.), '$fullName')]"))
-    clickHard(option)
-  }
-
-  // to find the visible list container using tailwind list divider
-  private def visibleDivideY(): WebElement = {
-    val lists = driver.findElements(By.cssSelector("[class*='divide-y']")).asScala
-    lists.find(_.isDisplayed).getOrElse(visible(By.cssSelector("[class*='divide-y']")))
-  }
-
 
   // ---------------------------------------------------------------------------
 
@@ -174,177 +169,95 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
   test("Homepage renders header and Employees content") {
     driver.get(frontendBase)
 
-    val h1 = wdWait.until(
-      ExpectedConditions.presenceOfElementLocated(By.xpath("//h1[contains(normalize-space(.), 'HR Portal')]"))
-    )
-    assert(h1.isDisplayed)
-
-    val addEmployeeBtn = wdWait.until(
-      ExpectedConditions.presenceOfElementLocated(By.xpath("//button[normalize-space(.)='Add employee']"))
-    )
-    assert(addEmployeeBtn.isDisplayed)
-
-    val lists = driver.findElements(By.cssSelector("[class*='divide-y']")).asScala
-    assert(lists.nonEmpty, "Expected an employees list container on the page")
+    assert(visible(byTest("app-title")).isDisplayed)
+    assert(clickable(byTest("add-employee")).isDisplayed)
+    assert(employeesList().isDisplayed)
   }
 
   // TEST: Viewing the list of employees
   test("Employees list shows records (Alice, Bob)") {
     driver.get(frontendBase)
+    val list = employeesList()
 
-    val listContainer = wdWait.until(
-      ExpectedConditions.presenceOfElementLocated(By.cssSelector("[class*='divide-y']"))
-    )
+    // wait until at least 2 items exist
+    wdWait.until(_ => list.findElements(By.cssSelector("[data-test='employee-item']")).size() >= 2)
 
-    wdWait.until { _ =>
-      listContainer.findElements(By.tagName("li")).size() >= 2
-    }
-
-    val items = listContainer.findElements(By.tagName("li")).asScala.map(_.getText).mkString(" | ")
-
-    assert(items.contains("Alice") && items.contains("Smith"), "Expected Alice Smith in the list")
-    assert(items.contains("Bob")   && items.contains("Johnson"), "Expected Bob Johnson in the list")
-
+    val textBlob = list.getText
+    assert(textBlob.contains("Alice") && textBlob.contains("Smith"), "Expected Alice Smith in the list")
+    assert(textBlob.contains("Bob") && textBlob.contains("Johnson"), "Expected Bob Johnson in the list")
   }
 
   // TEST: Adding a new employee
   test("Add a new employee and see it in the list") {
     driver.get(frontendBase)
+    clickByTest("add-employee")
+    employeeDialog()
 
-    // Open the dialog component
-    val addEmployeeBtn = wdWait.until(
-      ExpectedConditions.elementToBeClickable(By.xpath("//button[normalize-space(.)='Add employee']"))
-    )
-    addEmployeeBtn.click()
-
-    def fillByLabel(labelText: String, value: String): Unit = {
-      val label = wdWait.until(
-        ExpectedConditions.presenceOfElementLocated(
-          By.xpath(s"//label[translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz') = '${labelText.toLowerCase}']")
-        )
-      )
-      val forAttr = Option(label.getAttribute("for"))
-      val input: WebElement =
-        forAttr.flatMap { id =>
-          val byId = By.id(id)
-          Try(driver.findElement(byId)).toOption
-        }.getOrElse {
-          val candidates = label.findElements(By.xpath("(following::input | following::textarea)[1]"))
-          if (candidates.isEmpty) throw new NoSuchElementException(s"No input found for label '$labelText'")
-          candidates.get(0)
-        }
-      input.clear()
-      input.sendKeys(value)
-    }
-
-    // adding in test employee data
     val now = System.currentTimeMillis()
     val first = s"Test$now"
-    val last  = "Employee"
+    val last = "Employee"
     val email = s"test$now@example.com"
-    val mobile = "07000111222"
-    val address = "10 Downing St, London"
 
-    // filling in the form
-    fillByLabel("First name", first)
-    fillByLabel("Last name",  last)
-    fillByLabel("Email",      email)
-    fillByLabel("Mobile number", mobile)
-    fillByLabel("Address",    address)
+    typeByTest("firstName", first)
+    typeByTest("lastName", last)
+    typeByTest("email", email)
+    typeByTest("mobileNumber", "07000111222")
+    typeByTest("address", "10 Downing St, London")
 
-    // saving the new employee
-    val saveBtn = wdWait.until(
-      ExpectedConditions.elementToBeClickable(
-        By.xpath("//button[normalize-space(.)='Save' or @type='submit']")
-      )
-    )
-    saveBtn.click()
+    clickByTest("save-employee")
+    pause(250)
 
-    // pause for visual check
-    pause(1000)
-
-    // after save the dialog should close and the list should contain the new employee details
-    val listContainer = wdWait.until(
-      ExpectedConditions.presenceOfElementLocated(By.cssSelector("[class*='divide-y']"))
-    )
-
-    // pause for visual check
-    pause(1000)
-
-    // waiting till a li contains the new name OR email
-    wdWait.until { _ =>
-      val lis = listContainer.findElements(By.tagName("li")).asScala
-      lis.exists(li => li.getText.contains(first) && li.getText.contains(last)) ||
-        lis.exists(li => li.getText.contains(email))
-    }
-
-    // pause for visual check
-    pause(1000)
-
-    // final check
-    val combined = listContainer.findElements(By.tagName("li")).asScala.map(_.getText).mkString(" | ")
-    assert(combined.contains(first) && combined.contains(last), s"Expected new employee $first $last in list, got: $combined")
+    val list = employeesList()
+    wdWait.until(_ => list.getText.contains(first) && list.getText.contains(last))
   }
 
   // TEST: Adding an employee and a new contract type to that employee
   test("Add a new employee, then add a Contract for them and see it in Contracts list") {
     driver.get(frontendBase)
-    pause(400)
+
+    clickByTest("add-employee")
+    employeeDialog()
 
     val now = System.currentTimeMillis()
     val first = s"E2E$now"
-    val last  = "Contractee"
+    val last = "Contractee"
     val email = s"e2e$now@example.com"
-    val mobile = "07123456789"
-    val address = "221B Baker Street, London"
     val fullName = s"$first $last"
 
-    clickButtonByText("Add employee").click()
-    pause(200)
+    typeByTest("firstName", first)
+    typeByTest("lastName", last)
+    typeByTest("email", email)
+    typeByTest("mobileNumber", "07123456789")
+    typeByTest("address", "221B Baker Street, London")
 
-    fillByLabel("First name", first)
-    fillByLabel("Last name", last)
-    fillByLabel("Email", email)
-    fillByLabel("Mobile number", mobile)
-    fillByLabel("Address", address)
-
-    clickable(By.xpath("//button[normalize-space(.)='Save' or @type='submit']")).click()
-    pause(500)
-
-    val employeesList = visible(By.cssSelector("[class*='divide-y']"))
-    wdWait.until { _ => employeesList.getText.contains(first) && employeesList.getText.contains(last) }
-    pause(200)
+    clickByTest("save-employee")
+    pause(250)
+    wdWait.until(_ => employeesList().getText.contains(fullName))
 
     goToContractsTab()
-    pause(250)
+    clickByTest("add-contract")
+    contractDialog()
 
-    clickButtonByText("Add contract").click()
-    visible(By.cssSelector("div[role='dialog']"))
-    pause(200)
+    // choose the employee from the shadcn select
+    selectEmployeeInContractDialog(fullName)
 
-    selectEmployeeFromDropdownInDialog(fullName)
-    pause(150)
-
-    // set contract type = Contract
+    // setting contract type to Contract
     setContractTypeToContract()
-    pause(120)
 
-    // setting dates: start = today, end = today + 7
-    val today = LocalDate.now()
+    // dates: start today, end today + 7
     val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-    setDateByName("startDate", today.format(fmt))
-    setDateByName("endDate", today.plusDays(7).format(fmt))
+    val today = LocalDate.now()
+    setDateByTest("start-date", today.format(fmt))
+    setDateByTest("end-date", today.plusDays(7).format(fmt))
 
-    // saving
-    clickable(By.xpath("//button[normalize-space(.)='Save' or @type='submit']")).click()
-    pause(600)
+    clickByTest("save-contract")
+    pause(400)
 
-    // verify contract is listed (name + "Contract" is somewhere in the row)
-    val contractsList = visibleDivideY()
-    wdWait.until { _ =>
-      val t = contractsList.getText
-      t.contains(fullName) && (t.contains("Contract") || t.contains("contract"))
-    }
+    // check row shows Contract in the type text
+    val row = contractRowForEmployee(fullName)
+    val typeText = visibleIn(row, byTest("contract-type-text")).getText
+    assert(typeText.toLowerCase.contains("contract"), s"Expected contract type to include 'Contract', got: $typeText")
+
   }
 
 
