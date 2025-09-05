@@ -17,7 +17,10 @@ import play.api.test.TestServer
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
-final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
+final class EndToEnd
+  extends AnyFunSuite
+    with BeforeAndAfterAll
+    with EndToEndHelpers {
 
   // configure this if changes:
   private val frontendBase = "http://localhost:5173"
@@ -25,121 +28,9 @@ final class EndToEnd extends AnyFunSuite with BeforeAndAfterAll {
 
   private var app: Application = _
   private var server: TestServer = _
-  private var driver: WebDriver = _
-  private var wdWait: WebDriverWait = _
 
-  // ---------------------------------------------------------------------------
-  // HELPERS:
-
-  // use pause to check visually in browser and to wait for any animations/transitions to complete
-  private def pause(ms: Long): Unit = Thread.sleep(ms)
-
-  private def clickable(by: By): WebElement =
-    wdWait.until(ExpectedConditions.elementToBeClickable(by))
-
-  private def byTest(id: String): By =
-    By.cssSelector(s"[data-test='$id']")
-
-  private def visible(by: By): WebElement =
-    wdWait.until(ExpectedConditions.visibilityOfElementLocated(by))
-
-  private def visibleIn(el: WebElement, by: By): WebElement = {
-    wdWait.until(_ => {
-      val found = el.findElements(by).asScala.find(_.isDisplayed)
-      found.orNull
-    })
-  }
-
-  private def clickByTest(id: String): Unit =
-    clickable(byTest(id)).click()
-
-  private def typeByTest(id: String, value: String): Unit = {
-    val el = clickable(byTest(id))
-    el.clear()
-    el.sendKeys(value)
-  }
-
-  private def setDateByTest(id: String, yyyyMmDd: String): Unit = {
-    val input = clickable(byTest(id))
-    input.clear()
-    input.sendKeys(yyyyMmDd)
-    pause(80)
-    val current = Option(input.getAttribute("value")).getOrElse("")
-    if (current != yyyyMmDd) {
-      val js = driver.asInstanceOf[JavascriptExecutor]
-      js.executeScript(
-        "arguments[0].value = arguments[1];" +
-          "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));" +
-          "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
-        input, yyyyMmDd
-      )
-    }
-  }
-
-  // try to click, and if something is overlaying it, click via JS.
-  private def clickHard(el: WebElement): Unit = {
-    try el.click()
-    catch {
-      case _: ElementClickInterceptedException =>
-        val js = driver.asInstanceOf[JavascriptExecutor]
-        js.executeScript("arguments[0].scrollIntoView({block: 'center'});", el)
-        js.executeScript("arguments[0].click();", el)
-    }
-  }
-
-  // Tabs
-  private def goToEmployeesTab(): Unit = clickByTest("tab-employees")
-  private def goToContractsTab(): Unit = clickByTest("tab-contracts")
-
-  // Lists
-  private def employeesList(): WebElement = visible(byTest("employees-list"))
-  private def contractsList(): WebElement = visible(byTest("contracts-list"))
-
-  // Dialogs
-  private def employeeDialog(): WebElement = visible(byTest("employee-dialog"))
-  private def contractDialog(): WebElement = visible(byTest("contract-dialog"))
-
-  private def selectEmployeeInContractDialog(fullName: String): Unit = {
-    val dlg = contractDialog()
-    val trigger = visibleIn(dlg, byTest("employee-select-trigger"))
-    clickHard(trigger)
-    visible(byTest("employee-select-content"))
-    val exact = By.cssSelector(s"""[data-test='employee-option'][data-value="$fullName"]""")
-    val opt = Try(clickable(exact)).getOrElse {
-      clickable(By.xpath(s"//*[@data-test='employee-option' and contains(@data-value, ${xpathQuote(fullName)})]"))
-    }
-    clickHard(opt)
-  }
-
-  private def setContractTypeToContract(): Unit = {
-    val dlg = contractDialog()
-    val sel = visibleIn(dlg, byTest("contract-type"))
-    new Select(sel).selectByVisibleText("Contract")
-  }
-
-  private def contractRowForEmployee(fullName: String): WebElement = {
-    val list = contractsList()
-    wdWait.until(_ => {
-      val rows = list.findElements(By.cssSelector("[data-test='contract-item']")).asScala
-      rows.find { li =>
-        Try(li.findElement(byTest("contract-employee-name")).getText.contains(fullName)).getOrElse(false)
-      }.orNull
-    })
-  }
-
-  // XPATH safe quote utility - handles strings containing quotes
-  private def xpathQuote(s: String): String =
-    if (!s.contains("'")) s"'$s'"
-    else if (!s.contains("\"")) s""""$s""""
-    else {
-      val parts = s.split("'").map(p => s"'$p'")
-      ("concat(" + parts.mkString(", \"'\", ") + ")")
-    }
-
-  private def findDialog(): WebElement =
-    visible(By.cssSelector("div[role='dialog']"))
-
-  // ---------------------------------------------------------------------------
+  protected var driver: WebDriver = _
+  protected var wdWait: WebDriverWait = _
 
   override def beforeAll(): Unit = {
     val testCfg = com.typesafe.config.ConfigFactory.parseResources("application.test.conf")
