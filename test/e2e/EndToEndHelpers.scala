@@ -118,4 +118,16 @@ trait EndToEndHelpers {
 
   protected def findDialog(): WebElement =
     visible(By.cssSelector("div[role='dialog']"))
+
+  // finding employee name
+  protected def employeeRowForName(fullName: String): WebElement = {
+    val list = employeesList()
+    wdWait.until(_ => {
+      val rows = list.findElements(By.cssSelector("[data-test='employee-item']")).asScala
+      rows.find { li =>
+        Try(li.findElement(byTest("employee-name")).getText.contains(fullName)).getOrElse(false)
+      }.orNull
+    })
+  }
+
 }
