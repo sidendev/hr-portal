@@ -1,20 +1,19 @@
 package controllers
 
-import play.api.mvc._
 import javax.inject._
-import scala.concurrent.{ExecutionContext, Future}
 import play.api.libs.json._
+import play.api.mvc._
+import scala.concurrent.{ExecutionContext, Future}
 
-import models.ContractsModel
-import repositories.ContractsRepository
 import dtos.{CreateContractDto, UpdateContractDto}
+import models.ContractsModel
+import services.ContractsService
 import utils.ApiError
-import validators.ContractsValidator
 
 @Singleton
 class ContractsController @Inject()(
   cc: ControllerComponents,
-  contractsRepo: ContractsRepository
+  contractsService: ContractsService
 )(implicit ec: ExecutionContext) extends AbstractController(cc) {
 
   implicit val contractFormat: OFormat[ContractsModel] = Json.format[ContractsModel]
@@ -24,67 +23,29 @@ class ContractsController @Inject()(
   def create: Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[CreateContractDto].fold(
       errors => Future.successful(ApiError.InvalidJson(JsError(errors)).toResult),
-      dto => {
-        val validationErrors = ContractsValidator.validateCreate(dto)
-        if (validationErrors.nonEmpty)
-          Future.successful(ApiError.ValidationError(validationErrors).toResult)
-        else {
-          val contract = ContractsModel(
-            employeeId = dto.employeeId,
-            contractType = dto.contractType,
-            startDate = dto.startDate,
-            endDate = dto.endDate,
-            fullTime = dto.fullTime,
-            hoursPerWeek = dto.hoursPerWeek
-          )
-          contractsRepo.create(contract).map(_ => Created(Json.toJson(contract)))
-        }
-      }
+      dto => contractsService.create(dto).map(e => e.fold(_.toResult, c => Created(Json.toJson(c))))
     )
   }
 
   def listAll: Action[AnyContent] = Action.async {
-    contractsRepo.listAll().map(contracts => Ok(Json.toJson(contracts)))
+    contractsService.listAll().map(e => e.fold(_.toResult, cs => Ok(Json.toJson(cs))))
   }
 
   def findById(id: Int): Action[AnyContent] = Action.async {
-    contractsRepo.findById(id).map {
-      case Some(contract) => Ok(Json.toJson(contract))
-      case None => NotFound(Json.obj("error" -> "Contract not found"))
-    }
+    contractsService.findById(id).map(e => e.fold(_.toResult, c => Ok(Json.toJson(c))))
   }
 
   def delete(id: Int): Action[AnyContent] = Action.async {
-    contractsRepo.deleteById(id).map {
-      case 0 => NotFound(Json.obj("error" -> "Contract not found"))
-      case _ => NoContent
+    contractsService.delete(id).map {
+      case Left(err) => err.toResult
+      case Right(_) => NoContent
     }
   }
 
   def update(id: Int): Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[UpdateContractDto].fold(
       errors => Future.successful(ApiError.InvalidJson(JsError(errors)).toResult),
-      dto => {
-        val validationErrors = ContractsValidator.validateUpdate(dto)
-        if (validationErrors.nonEmpty)
-          Future.successful(ApiError.ValidationError(validationErrors).toResult)
-        else {
-          contractsRepo.findById(id).flatMap {
-            case Some(existing) =>
-              val merged = existing.copy(
-                contractType = dto.contractType.getOrElse(existing.contractType),
-                startDate = dto.startDate.getOrElse(existing.startDate),
-                endDate = dto.endDate.orElse(existing.endDate),
-                fullTime = dto.fullTime.getOrElse(existing.fullTime),
-                hoursPerWeek = dto.hoursPerWeek.orElse(existing.hoursPerWeek)
-              )
-              contractsRepo.update(id, merged).map(_ => Ok(Json.toJson(merged)))
-            case None =>
-              Future.successful(NotFound(Json.obj("error" -> "Contract not found")))
-          }
-        }
-      }
+      dto => contractsService.update(id, dto).map(e => e.fold(_.toResult, merged => Ok(Json.toJson(merged))))
     )
   }
 }
-

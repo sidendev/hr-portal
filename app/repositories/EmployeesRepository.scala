@@ -31,4 +31,17 @@ class EmployeesRepository @Inject()(
 
   def update(id: Int, updated: EmployeesModel): Future[Int] =
     db.run(employees.filter(_.id === id).update(updated))
+
+  def setActiveEmail(id: Int, emailId: Long, address: String): Future[Int] = {
+    db.run(
+      Tables.employees
+        .filter(_.id === id.bind)
+        .map(e => (e.emailId, e.email))
+        .update((Some(emailId), address))
+    )
+  }
+
+  def findByEmail(address: String): Future[Option[EmployeesModel]] =
+    db.run(Tables.employees.filter(_.email === address).result.headOption)
+
 }

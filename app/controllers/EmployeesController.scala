@@ -5,16 +5,15 @@ import javax.inject._
 import scala.concurrent.{ExecutionContext, Future}
 import play.api.libs.json._
 
-import models.EmployeesModel
-import repositories.EmployeesRepository
 import dtos.CreateEmployeeDto
+import models.EmployeesModel
+import services.EmployeesService
 import utils.ApiError
-import validators.EmployeesValidator
 
 @Singleton
 class EmployeesController @Inject()(
   cc: ControllerComponents,
-  employeesRepo: EmployeesRepository
+  employeesService: EmployeesService
 )(implicit ec: ExecutionContext) extends AbstractController(cc) {
 
   implicit val employeesFormat: OFormat[EmployeesModel] = Json.format[EmployeesModel]
@@ -23,66 +22,29 @@ class EmployeesController @Inject()(
   def create: Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[CreateEmployeeDto].fold(
       errors => Future.successful(ApiError.InvalidJson(JsError(errors)).toResult),
-      dto => {
-        val validationErrors = EmployeesValidator.validateCreate(dto)
-        if (validationErrors.nonEmpty)
-          Future.successful(ApiError.ValidationError(validationErrors).toResult)
-        else {
-          val employee = EmployeesModel(
-            firstName = dto.firstName,
-            lastName = dto.lastName,
-            email = dto.email,
-            mobileNumber = dto.mobileNumber,
-            address = dto.address
-          )
-          employeesRepo.create(employee).map(_ => Created(Json.toJson(employee)))
-        }
-      }
+      dto => employeesService.create(dto).map(e => e.fold(_.toResult, emp => Created(Json.toJson(emp))))
     )
   }
 
   def listAll: Action[AnyContent] = Action.async {
-    employeesRepo.listAll().map { employees =>
-      Ok(Json.toJson(employees))
-    }
+    employeesService.listAll().map(e => e.fold(_.toResult, emps => Ok(Json.toJson(emps))))
   }
 
   def findById(id: Int): Action[AnyContent] = Action.async {
-    employeesRepo.findById(id).map {
-      case Some(employee) => Ok(Json.toJson(employee))
-      case None => NotFound(Json.obj("error" -> "Employee not found"))
-    }
+    employeesService.findById(id).map(e => e.fold(_.toResult, emp => Ok(Json.toJson(emp))))
   }
 
   def delete(id: Int): Action[AnyContent] = Action.async {
-    employeesRepo.deleteById(id).map {
-      case 0 => NotFound(Json.obj("error" -> "Employee not found"))
-      case _ => NoContent
+    employeesService.delete(id).map {
+      case Left(err) => err.toResult
+      case Right(_) => NoContent
     }
   }
 
   def update(id: Int): Action[JsValue] = Action.async(parse.json) { request =>
     request.body.validate[CreateEmployeeDto].fold(
       errors => Future.successful(ApiError.InvalidJson(JsError(errors)).toResult),
-      dto => {
-        val validationErrors = EmployeesValidator.validateCreate(dto)
-        if (validationErrors.nonEmpty)
-          Future.successful(ApiError.ValidationError(validationErrors).toResult)
-        else {
-          val updatedEmployee = EmployeesModel(
-            id = Some(id),
-            firstName = dto.firstName,
-            lastName = dto.lastName,
-            email = dto.email,
-            mobileNumber = dto.mobileNumber,
-            address = dto.address
-          )
-          employeesRepo.update(id, updatedEmployee).map {
-            case 0 => NotFound(Json.obj("error" -> "Employee not found"))
-            case _ => Ok(Json.toJson(updatedEmployee))
-          }
-        }
-      }
+      dto => employeesService.update(id, dto).map(e => e.fold(_.toResult, emp => Ok(Json.toJson(emp))))
     )
   }
 }
