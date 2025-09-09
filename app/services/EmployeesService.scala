@@ -6,13 +6,16 @@ import scala.concurrent.{ExecutionContext, Future}
 import dtos.CreateEmployeeDto
 import models.EmployeesModel
 import repositories.EmployeesRepository
+import repositories.ContractsRepository
 import utils.ApiError
 import validators.EmployeesValidator
 import services.EmailsService
+import java.time.{LocalDate, YearMonth}
 
 @Singleton
 class EmployeesService @Inject()(
   employeesRepo: EmployeesRepository,
+  contractsRepo: ContractsRepository,
   emailsService: EmailsService
 )(implicit ec: ExecutionContext) {
 
@@ -95,5 +98,72 @@ class EmployeesService @Inject()(
           }
       }
     }
+  }
+
+  def search(
+    contractType: Option[String],
+    q: Option[String],
+    expiring: Option[String],
+    page: Option[Int],
+    size: Option[Int]
+  ): Future[Either[ApiError, Seq[EmployeesModel]]] = {
+    val fullTimeOpt: Option[Boolean] = contractType.map(_.toLowerCase) match {
+      case Some("full-time") | Some("fulltime") => Some(true)
+      case Some("part-time") | Some("parttime") => Some(false)
+      case Some(other) => return Future.successful(Left(ApiError.ValidationError(Map("contractType" -> s"Unsupported: $other"))))
+      case None => None
+    }
+
+    // building name LIKE pattern
+    val likePattern: Option[String] = q.map(_.trim).filter(_.nonEmpty).map(s => s"%${s.toLowerCase}%")
+
+    // expiring current month
+    import java.time.YearMonth
+    val wantsExpiring = expiring.exists(_.equalsIgnoreCase("current-month"))
+    val ym = YearMonth.now()
+    val start = ym.atDay(1)
+    val end   = ym.plusMonths(1).atDay(1)
+
+    // pagination defaults - 20 per page
+    val pageNum  = page.getOrElse(1)
+    val pageSize = size.getOrElse(20)
+    if (pageNum < 1)  return Future.successful(Left(ApiError.ValidationError(Map("page" -> "must be >= 1"))))
+    if (pageSize < 1) return Future.successful(Left(ApiError.ValidationError(Map("size" -> "must be >= 1"))))
+    if (pageSize > 100) return Future.successful(Left(ApiError.ValidationError(Map("size" -> "must be <= 100"))))
+
+    val employeesF = employeesRepo.findByNameLike(likePattern)
+    val contractsF = contractsRepo.listAll()
+
+    (for {
+      employees <- employeesF
+      contracts <- contractsF
+    } yield {
+      // grouping contracts by employeeId
+      val contractsByEmp: Map[Int, Seq[models.ContractsModel]] = contracts.groupBy(_.employeeId)
+
+      val filtered = employees.filter { e =>
+        val okType = fullTimeOpt match {
+          case None => true
+          case Some(ft) =>
+            e.id.exists(id => contractsByEmp.getOrElse(id, Nil).exists(_.fullTime == ft))
+        }
+        val okExpiry =
+          if (!wantsExpiring) true
+          else e.id.exists { id =>
+            contractsByEmp.getOrElse(id, Nil).exists { c =>
+              c.endDate.exists(d => !d.isBefore(start) && d.isBefore(end))
+            }
+          }
+        okType && okExpiry
+      }
+
+      // pagination
+      val from = (pageNum - 1) * pageSize
+      val paged =
+        if (from >= filtered.length) Seq.empty
+        else filtered.slice(from, math.min(from + pageSize, filtered.length))
+
+      Right(paged)
+    }).recover { case ex => Left(ApiError.InternalServerError(ex.getMessage)) }
   }
 }

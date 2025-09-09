@@ -3,7 +3,7 @@ GET     /               controllers.HomeController.index
 
 # Employees
 POST    /employees      controllers.EmployeesController.create
-GET     /employees      controllers.EmployeesController.listAll
+GET     /employees      controllers.EmployeesController.listAll(contractType: Option[String], q: Option[String], expiring: Option[String], page: Option[Int], size: Option[Int])
 GET     /employees/:id  controllers.EmployeesController.findById(id: Int)
 DELETE  /employees/:id  controllers.EmployeesController.delete(id: Int)
 PATCH   /employees/:id  controllers.EmployeesController.update(id: Int)

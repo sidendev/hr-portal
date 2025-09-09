@@ -44,4 +44,19 @@ class EmployeesRepository @Inject()(
   def findByEmail(address: String): Future[Option[EmployeesModel]] =
     db.run(Tables.employees.filter(_.email === address).result.headOption)
 
+  // filtering employees by LIKE on first or last name
+  def findByNameLike(likeLowerPattern: Option[String]): Future[Seq[EmployeesModel]] = {
+    val base = Tables.employees
+    val query = likeLowerPattern match {
+      case Some(p) =>
+        base.filter(e =>
+          e.firstName.toLowerCase.like(p.bind) ||
+            e.lastName.toLowerCase.like(p.bind)
+        )
+      case None =>
+        base
+    }
+    db.run(query.result)
+  }
+
 }

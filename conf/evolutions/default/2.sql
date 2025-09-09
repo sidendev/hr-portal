@@ -3,7 +3,7 @@
 -- unique emails never to be used by updates or new employees
 CREATE TABLE emails (
   id BIGINT NOT NULL AUTO_INCREMENT,
-  employee_id BIGINT NULL,
+  employee_id INT NULL,
   address VARCHAR(255) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

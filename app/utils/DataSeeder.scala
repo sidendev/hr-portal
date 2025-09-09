@@ -33,8 +33,14 @@ class DataSeeder @Inject() (
       log.info("DataSeeder: seeding initial data if empty...")
 
       val initialEmployees = Seq(
-        EmployeesModel(None, "Alice", "Smith", "alice@example.com", "1234567890", Some("123 Main St, NY, USA, 001001")),
-        EmployeesModel(None, "Bob",   "Johnson", "bob@example.com",   "0987654321", Some("456 High St, NY, USA, 001001"))
+        EmployeesModel(None, "Alice", "Smith", "alice.smith@example.com", "1234567890", Some("123 Main St, NY, USA, 001001")),
+        EmployeesModel(None, "Max", "Green", "max.green@example.com", "1234567890", Some("600 Main St, NY, USA, 006001")),
+        EmployeesModel(None, "Terry", "Blue", "terry.blue@example.com", "1234567890", Some("200 Sun St, NY, USA, 005001")),
+        EmployeesModel(None, "Jay", "Brown", "jay.brown@example.com", "1234567890", Some("33 Moon St, NY, USA, 006001")),
+        EmployeesModel(None, "Harry", "Black", "harry.black@example.com", "1234567890", Some("55 Main St, NY, USA, 001001")),
+        EmployeesModel(None, "Joseph", "Vega", "joseph.vega@example.com", "1234567890", Some("60 City St, NY, USA, 006001")),
+        EmployeesModel(None, "Todd", "Bloom", "Todd.bloom@example.com", "1234567890", Some("105 City St, NY, USA, 001001")),
+        EmployeesModel(None, "Bob",   "Johnson", "bob.johnson@example.com",   "0987654321", Some("456 High St, NY, USA, 001001"))
       )
 
       val action: DBIO[Unit] = for {
