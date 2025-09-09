@@ -8,7 +8,6 @@ object EmployeesValidator extends Validator {
     List(
       isNotEmpty("firstName", dto.firstName),
       isNotEmpty("lastName", dto.lastName),
-      isNotEmpty("email", dto.email),
       isNotEmpty("mobileNumber", dto.mobileNumber),
       isNonBlankIfDefined("address", dto.address)
     ).flatten.toMap
@@ -18,7 +17,6 @@ object EmployeesValidator extends Validator {
     List(
       isNonBlankIfDefined("firstName", dto.firstName),
       isNonBlankIfDefined("lastName", dto.lastName),
-      isNonBlankIfDefined("email", dto.email),
       isNonBlankIfDefined("mobileNumber", dto.mobileNumber),
       isNonBlankIfDefined("address", dto.address)
     ).flatten.toMap
