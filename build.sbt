@@ -13,5 +13,6 @@ libraryDependencies ++= Seq(
   "com.h2database" % "h2" % "2.3.232" % Test,
   "com.mysql" % "mysql-connector-j" % "8.0.31",
   "com.typesafe.play" %% "play-slick" % "5.1.0",
-  "com.typesafe.play" %% "play-slick-evolutions" % "5.1.0"
+  "com.typesafe.play" %% "play-slick-evolutions" % "5.1.0",
+  "org.scalatestplus" %% "mockito-4-6" % "3.2.15.0" % Test
 )
