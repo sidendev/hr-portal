@@ -198,20 +198,36 @@ CREATE TABLE contracts (
 
 ### Configuration
 
-The application can be configured using `conf/application.conf` or environment variables:
+Create a `.env` file in the root directory with your database configuration:
 
-```hocon
-# Database configuration
-slick.dbs.default.profile = "slick.jdbc.H2Profile$"
-slick.dbs.default.db.driver = "org.h2.Driver"
-slick.dbs.default.db.url = "jdbc:h2:mem:hrportal;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS PUBLIC\\;RUNSCRIPT FROM 'classpath:test-schema.sql'"
-slick.dbs.default.db.user = "sa"
-slick.dbs.default.db.password = ""
-
-# Play Framework settings
-play.http.secret.key = "your-secret-key"
-play.http.errorHandler = "utils.ErrorHandler"
+```bash
+# Database Configuration
+DB_USER=root
+DB_PASSWORD=your-db-password
+DB_NAME=your-db-name
+DB_URL=jdbc:mysql://localhost:3306/your-db-name
 ```
+
+### Application Configuration
+
+The main configuration is in `conf/application.conf` and uses the environment variables above. No changes are needed to this file for local development.
+
+### CORS Configuration
+
+The application has CORS (Cross-Origin Resource Sharing) enabled by default with the following configuration in `application.conf`:
+
+- **Allowed Origins**: `http://localhost:5173` (Vite default development server)
+- **Allowed Methods**: GET, POST, PUT, PATCH, DELETE, OPTIONS
+- **Allowed Headers**: Accept, Origin, Content-Type, X-Requested-With, Authorization
+- **Credentials**: Not allowed (set to `false`)
+- **Preflight Cache**: 3 days
+
+To modify CORS settings (e.g., to add additional origins), update the `application.conf` file.
+
+### Test Configuration
+
+Tests use an in-memory H2 database with the following configuration (already set up in `conf/application.test.conf`).
+No additional configuration is needed to run tests.
 
 ## API Endpoints
 
@@ -264,18 +280,4 @@ Docker deployment details to be added here after deployment.
 
 ### Production Configuration
 
-For production deployment, configure these environment variables (set up a .env file at root level):
-
-```bash
-# Required
-PLAY_HTTP_SECRET=your-secret-key
-DB_URL=jdbc:mysql://your-db-host:3306/your-db?useSSL=false&serverTimezone=UTC
-DB_USER=your-db-user
-DB_PASSWORD=your-db-password
-
-# Recommended for production
-DB_CONNECTION_TIMEOUT=30000
-DB_IDLE_TIMEOUT=10000
-DB_MAX_LIFETIME=1800000
-DB_MAXIMUM_POOL_SIZE=10
-```
+Production config details to be added here after deployment.
