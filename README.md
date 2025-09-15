@@ -1,21 +1,21 @@
 # HR Portal - API
 
-A simple HR management system backend built with Scala and Play Framework. This RESTful API powers the HR Portal frontend, providing employee and contract management.
+A simple HR management system backend built with Scala and Play Framework. This RESTful API connects to the HR Portal frontend, providing employee and contract management. The React based frontend for this project can be found at the [frontend repository](https://github.com/sidendev/hr-portal-fe).
 
 <div style="text-align: center;">
   <img src="./public/screenshot-hr-portal.png" alt="HR Portal Screenshot" style="max-width: 100%; width: 600px;"/>
-  <p style="font-style: italic;">HR Portal interface showing employee management with filtering</p>
+  <p style="font-style: italic;">HR Portal interface with employee management with filtering</p>
 </div>
 
 ## Overview
 
-The HR Portal API is a backend service that handles business logic, data persistence with MySQL, and frontend integration points for the HR Portal application. Built with comprehensive test coverage, and error handling.
+The HR Portal API is a backend service that handles the business logic, data persistence with MySQL, and frontend integration points for the HR Portal application. Built with comprehensive test coverage, and error handling.
 
 ### Key Features
 
 - **RESTful API** - Endpoints following REST principles
 - **Comprehensive Testing** - Unit, integration, and end-to-end testing
-- **Data Validation** - Robust input validation
+- **Data Validation** - Data input validation
 - **Error Handling** - Error responses with appropriate HTTP status codes
 - **Database Migrations** - schema management with Play Evolutions
 - **Containerisation** - Docker support for local development and deployment - to be implemented
@@ -27,17 +27,14 @@ The HR Portal API is a backend service that handles business logic, data persist
 - **Play Framework 2.8** - Web framework
 - **Slick 3.3** - Database access library with type-safe queries
 - **MySQL 8.0** - Production database (H2 in-memory for testing)
+- **sbt** - Build tool
 
 ### Testing
 - **ScalaTest** - Primary testing framework
 - **Mockito** - Mocking for unit tests
 - **Play Specs2** - Integration testing
 - **Selenium** - End-to-end browser testing
-- **sbt-scoverage** - Code coverage reporting - to be implemented and shown in the README
-
-### Build & Dependency Management
-- **sbt** - Build tool
-- **sbt-updates** - Dependency version management
+- **sbt-scoverage** - Code coverage reporting - to be implemented
 
 ## Project Structure
 
@@ -50,11 +47,15 @@ app/
 ├── dtos/              # Data Transfer Objects
 │   ├── CreateEmployeeDto.scala
 │   ├── CreateContractDto.scala
-│   └── ...
+│   ├── UpdateEmployeeDto.scala
+│   ├── UpdateContractDto.scala
+│   ├── ContractResponseDto.scala
+│   └── EmployeeResponseDto.scala
 ├── models/            # Domain models
 │   ├── EmployeesModel.scala
 │   ├── ContractsModel.scala
-│   └── EmailsModel.scala
+│   ├── EmailsModel.scala
+│   └── Tables.scala
 ├── repositories/      # Data access layer
 │   ├── EmployeesRepository.scala
 │   ├── ContractsRepository.scala
@@ -83,7 +84,7 @@ test/
 ## Testing Strategy
 
 ### 1. Unit Tests
-- **Purpose**: Test individual components in isolation with mocked dependencies
+- **Purpose**: Test individual components with mocked dependencies
 - **Coverage**: Business logic, validation, and data transformation
 - **Location**: `test/services/`
 - **Key Tests**:
@@ -100,7 +101,7 @@ test/
   - Input validation and error handling
 
 ### 3. End-to-End Tests
-- **Purpose**: Test complete workflows from API to database
+- **Purpose**: Test complete workflows from API frontend to database
 - **Coverage**: Full stack testing with Selenium
 - **Location**: `test/e2e/`
 - **Key Tests**:
@@ -116,14 +117,17 @@ Stores employee personal information and links to their email records.
 
 ```sql
 CREATE TABLE employees (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id INT PRIMARY KEY AUTO_INCREMENT,
   first_name VARCHAR(255) NOT NULL,
   last_name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) NOT NULL,
-  mobile_number VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  mobile_number VARCHAR(20) NOT NULL,
   address VARCHAR(255),
-  email_id BIGINT,
-  FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE SET NULL
+  email_id BIGINT NULL,
+  INDEX ix_employees_email_id (email_id),
+  CONSTRAINT fk_employees_email
+    FOREIGN KEY (email_id) REFERENCES emails(id)
+    ON DELETE SET NULL
 );
 ```
 
@@ -132,13 +136,18 @@ Manages email addresses for employees, supporting unique email rotation and hist
 
 ```sql
 CREATE TABLE emails (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  employee_id INT,
-  address VARCHAR(255) NOT NULL UNIQUE,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  employee_id INT NULL,
+  address VARCHAR(255) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  deactivated_at TIMESTAMP,
-  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
+  deactivated_at TIMESTAMP NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY ux_emails_address (address),
+  INDEX ix_emails_employee_id (employee_id),
+  CONSTRAINT fk_emails_employee
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
+    ON DELETE SET NULL
 );
 ```
 
@@ -147,19 +156,19 @@ Stores employment contract details for each employee.
 
 ```sql
 CREATE TABLE contracts (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id INT PRIMARY KEY AUTO_INCREMENT,
   employee_id INT NOT NULL,
-  contract_type VARCHAR(255) NOT NULL,
+  contract_type ENUM('Permanent', 'Contract') NOT NULL,
   start_date DATE NOT NULL,
   end_date DATE,
-  full_time BOOLEAN NOT NULL,
+  full_time BOOLEAN NOT NULL DEFAULT true,
   hours_per_week INT,
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
 ```
 
 ### Key Relationships
-1. **Employees to Emails**: One-to-many (one employee can have multiple email records)
+1. **Employees to Emails**: One-to-many (one employee can have multiple email records, only one active)
 2. **Employees to Contracts**: One-to-many (one employee can have multiple contracts over time)
 3. **Email to Employee**: Optional many-to-one (email must be linked to an employee - only one active at any time)
 
@@ -169,7 +178,7 @@ CREATE TABLE contracts (
 
 - **Java 11** or higher
 - **sbt** (Scala Build Tool) 1.5.0 or higher
-- **Docker** (optional, for containerised development) - docker not yet implemented
+- **Docker** (optional, for containerised deployment) - docker not yet implemented
 
 ### Installation
 
@@ -239,7 +248,7 @@ No additional configuration is needed to run tests.
 - `PATCH  /employees/:id` - Update employee
 - `DELETE /employees/:id` - Delete employee
 
-#### Query Parameters for Employee Listing
+#### Query Parameters for Employees
 
 | Parameter    | Type    | Description                                      | Example                     |
 |--------------|---------|--------------------------------------------------|-----------------------------|
@@ -257,14 +266,11 @@ No additional configuration is needed to run tests.
 - `PATCH  /contracts/:id` - Update contract
 - `DELETE /contracts/:id` - Delete contract
 
-## Testing Approach
+## Testing
 
 ### Test Database Setup
 
-The test environment uses an H2 in-memory database with the following configuration:
-```hocon
-jdbc:h2:mem:testdb;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS PUBLIC\\;RUNSCRIPT FROM 'classpath:test-schema.sql'
-```
+The test environment uses an H2 in-memory database with a test db schema file located in the test resources.
 
 ### Test Coverage
 
