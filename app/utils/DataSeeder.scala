@@ -39,8 +39,16 @@ class DataSeeder @Inject() (
         EmployeesModel(None, "Jay", "Brown", "jay.brown@example.com", "1234567890", Some("33 Moon St, NY, USA, 006001")),
         EmployeesModel(None, "Harry", "Black", "harry.black@example.com", "1234567890", Some("55 Main St, NY, USA, 001001")),
         EmployeesModel(None, "Joseph", "Vega", "joseph.vega@example.com", "1234567890", Some("60 City St, NY, USA, 006001")),
-        EmployeesModel(None, "Todd", "Bloom", "Todd.bloom@example.com", "1234567890", Some("105 City St, NY, USA, 001001")),
-        EmployeesModel(None, "Bob",   "Johnson", "bob.johnson@example.com",   "0987654321", Some("456 High St, NY, USA, 001001"))
+        EmployeesModel(None, "Todd", "Bloom", "todd.bloom@example.com", "1234567890", Some("105 City St, NY, USA, 001001")),
+        EmployeesModel(None, "Bob",   "Johnson", "bob.johnson@example.com",   "0987654321", Some("456 High St, NY, USA, 001001")),
+        EmployeesModel(None, "Annie", "Green", "annie.green@example.com", "1234567890", Some("125 Main St, NY, USA, 001001")),
+        EmployeesModel(None, "Matt", "White", "matt.white@example.com", "1234567890", Some("800 Main St, NY, USA, 006001")),
+        EmployeesModel(None, "Tyler", "Brown", "tyler.brown@example.com", "1234567890", Some("120 Sun St, NY, USA, 005001")),
+        EmployeesModel(None, "John", "Doe", "john.doe@example.com", "1234567890", Some("34 Moon St, NY, USA, 006001")),
+        EmployeesModel(None, "Henry", "Brook", "henry.brook@example.com", "1234567890", Some("61 Main St, NY, USA, 001001")),
+        EmployeesModel(None, "Joe", "Morgan", "joe.morgan@example.com", "1234567890", Some("80 City St, NY, USA, 006001")),
+        EmployeesModel(None, "Tim", "Nash", "tim.nash@example.com", "1234567890", Some("110 City St, NY, USA, 001001")),
+        EmployeesModel(None, "Barry",   "Kane", "barry.kane@example.com",   "0987654321", Some("321 High St, NY, USA, 001001"))
       )
 
       val action: DBIO[Unit] = for {
