@@ -9,7 +9,7 @@ DELETE  /employees/:id  controllers.EmployeesController.delete(id: Int)
 PATCH   /employees/:id  controllers.EmployeesController.update(id: Int)
 
 # Contracts
-GET     /contracts      controllers.ContractsController.listAll
+GET     /contracts      controllers.ContractsController.listAll(contractType: Option[String], q: Option[String], expiring: Option[String], page: Option[Int], size: Option[Int])
 POST    /contracts      controllers.ContractsController.create
 GET     /contracts/:id  controllers.ContractsController.findById(id: Int)
 DELETE  /contracts/:id  controllers.ContractsController.delete(id: Int)

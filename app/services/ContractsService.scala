@@ -2,16 +2,18 @@ package services
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import java.time.{LocalDate, YearMonth}
 
 import dtos.{CreateContractDto, UpdateContractDto}
-import models.ContractsModel
-import repositories.ContractsRepository
+import models.{ContractsModel, EmployeesModel}
+import repositories.{ContractsRepository, EmployeesRepository}
 import utils.ApiError
 import validators.ContractsValidator
 
 @Singleton
 class ContractsService @Inject()(
-  contractsRepo: ContractsRepository
+  contractsRepo: ContractsRepository,
+  employeesRepo: EmployeesRepository
 )(implicit ec: ExecutionContext) {
 
   def create(dto: CreateContractDto): Future[Either[ApiError, ContractsModel]] = {
@@ -37,6 +39,35 @@ class ContractsService @Inject()(
     contractsRepo.listAll()
       .map(Right(_))
       .recover { case ex => Left(ApiError.InternalServerError(ex.getMessage)) }
+      
+  def search(
+    contractType: Option[String],
+    q: Option[String],
+    expiring: Option[String],
+    page: Option[Int],
+    size: Option[Int]
+  ): Future[Either[ApiError, Seq[ContractsModel]]] = {
+    val pageNum = page.getOrElse(1)
+    val pageSize = size.getOrElse(20)
+    
+    if (pageNum < 1) return Future.successful(
+      Left(ApiError.ValidationError(Map("page" -> "must be >= 1")))
+    )
+    if (pageSize < 1) return Future.successful(
+      Left(ApiError.ValidationError(Map("size" -> "must be >= 1")))
+    )
+    if (pageSize > 100) return Future.successful(
+      Left(ApiError.ValidationError(Map("size" -> "must be <= 100")))
+    )
+
+    contractsRepo.listAll().map { contracts =>
+      val from = (pageNum - 1) * pageSize
+      val paged = 
+        if (from >= contracts.length) Seq.empty
+        else contracts.slice(from, math.min(from + pageSize, contracts.length))
+      Right(paged)
+    }.recover { case ex => Left(ApiError.InternalServerError(ex.getMessage)) }
+  }
 
   def findById(id: Int): Future[Either[ApiError, ContractsModel]] =
     contractsRepo.findById(id)

@@ -56,10 +56,28 @@ class DataSeeder @Inject() (
         _ <- if (!existing) {
           for {
             insertedIds <- (employees returning employees.map(_.id)) ++= initialEmployees
-            _ <- contracts ++= Seq(
-              ContractsModel(None, insertedIds.head, "Permanent", LocalDate.parse("2023-01-01"), None, fullTime = true,  Some(40)),
-              ContractsModel(None, insertedIds(1),   "Contract",  LocalDate.parse("2024-05-01"), Some(LocalDate.parse("2025-05-01")), fullTime = false, Some(20))
-            )
+            _ <- contracts ++= insertedIds.zipWithIndex.map { case (id, idx) =>
+              // alternates between different contract types and full/part time to seed
+              val (contractType, endDate, fullTime, hours) = idx % 4 match {
+                case 0 => ("Permanent", None, true, Some(40))
+                case 1 => ("Contract", Some(LocalDate.parse("2025-06-30")), true, Some(40))
+                case 2 => ("Permanent", None, false, Some(20))
+                case 3 => ("Contract", Some(LocalDate.parse("2024-12-31")), false, Some(25))
+              }
+              
+              // varied start dates
+              val startDate = LocalDate.now().minusMonths(12 - (idx % 12)).withDayOfMonth(1)
+              
+              ContractsModel(
+                id = None,
+                employeeId = id,
+                contractType = contractType,
+                startDate = startDate,
+                endDate = endDate,
+                fullTime = fullTime,
+                hoursPerWeek = hours
+              )
+            }
           } yield ()
         } else DBIO.successful(())
       } yield ()

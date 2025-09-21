@@ -27,8 +27,15 @@ class ContractsController @Inject()(
     )
   }
 
-  def listAll: Action[AnyContent] = Action.async {
-    contractsService.listAll().map(e => e.fold(_.toResult, cs => Ok(Json.toJson(cs))))
+  def listAll(
+    contractType: Option[String],
+    q: Option[String],
+    expiring: Option[String],
+    page: Option[Int],
+    size: Option[Int]
+  ): Action[AnyContent] = Action.async {
+    contractsService.search(contractType, q, expiring, page, size)
+      .map(_.fold(_.toResult, cs => Ok(Json.toJson(cs))))
   }
 
   def findById(id: Int): Action[AnyContent] = Action.async {

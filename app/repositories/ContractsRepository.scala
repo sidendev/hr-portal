@@ -2,7 +2,7 @@ package repositories
 
 import models.{ContractsModel, Tables}
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 import play.api.db.slick.DatabaseConfigProvider
 import slick.jdbc.JdbcProfile
 
@@ -16,7 +16,6 @@ class ContractsRepository @Inject()(
   import profile.api._
 
   private val contracts = Tables.contracts
-
   def create(contract: ContractsModel): Future[Int] =
     db.run(contracts += contract)
 
