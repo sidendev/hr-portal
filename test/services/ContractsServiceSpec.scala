@@ -344,4 +344,44 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       result.left.value mustBe a[ApiError.InternalServerError]
     }
   }
+
+  "ContractsService.search" should {
+    "return paginated contracts" in {
+      // Arrange
+      val mockContractsRepo = mock[ContractsRepository]
+      val allContracts = (1 to 16).map { i =>
+        ContractsModel(
+          id = Some(i),
+          employeeId = i,
+          contractType = if (i % 2 == 0) "permanent" else "contract",
+          startDate = LocalDate.now().minusMonths(i),
+          endDate = if (i % 2 == 0) None else Some(LocalDate.now().plusMonths(i)),
+          fullTime = i % 2 == 0,
+          hoursPerWeek = if (i % 2 == 0) Some(40) else Some(20)
+        )
+      }
+
+      when(mockContractsRepo.listAll())
+        .thenReturn(Future.successful(allContracts))
+
+      val service = new ContractsService(mockContractsRepo)
+
+      // Act
+      val result = service.search(
+        contractType = None,
+        q = None,
+        expiring = None,
+        page = Some(1),
+        size = Some(5)
+      ).futureValue
+
+      // Assert
+      result.isRight mustBe true
+      val page1 = result.value
+      page1.size mustBe 5
+      page1.head.id mustBe Some(1)
+
+      verify(mockContractsRepo).listAll()
+    }
+  }
 }
