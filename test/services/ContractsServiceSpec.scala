@@ -7,7 +7,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import org.mockito.ArgumentMatchers.{any, eq, anyInt}
 import org.mockito.Mockito.{when, verify}
 import scala.concurrent.{ExecutionContext, Future}
-import repositories.ContractsRepository
+import repositories.{ContractsRepository, EmployeesRepository}
 import models.ContractsModel
 import dtos.{CreateContractDto, UpdateContractDto}
 import utils.ApiError
@@ -16,13 +16,14 @@ import java.time.LocalDate
 class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures with EitherValues {
 
   implicit val ec: ExecutionContext = ExecutionContext.global
+  val mockEmployeesRepo = mock[EmployeesRepository]
 
   "ContractsService.create" should {
     // TEST: the create method properly validates the input and returns validation errors
     "return validation error when dto is invalid" in {
       // Arrange - setting up mocks and invalid test data
       val mockContractsRepo = mock[ContractsRepository]
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
       val invalidDto = CreateContractDto(
         employeeId = 1,
         contractType = "", // this is invalid, contract type cannot be empty
@@ -54,7 +55,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       )
       when(mockContractsRepo.create(any[ContractsModel]))
         .thenReturn(Future.successful(1))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.create(dto).futureValue
@@ -83,7 +84,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       )
       when(mockContractsRepo.create(any[ContractsModel]))
         .thenReturn(Future.failed(new RuntimeException("Database error")))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.create(dto).futureValue
@@ -107,7 +108,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       )
       when(mockContractsRepo.listAll())
         .thenReturn(Future.successful(contracts))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.listAll().futureValue
@@ -124,7 +125,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       val mockContractsRepo = mock[ContractsRepository]
       when(mockContractsRepo.listAll())
         .thenReturn(Future.failed(new RuntimeException("Database error")))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act - call the service with repository failure
       val result = service.listAll().futureValue
@@ -144,7 +145,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
         LocalDate.now, None, fullTime = true, Some(40))
       when(mockContractsRepo.findById(1))
         .thenReturn(Future.successful(Some(contract)))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.findById(1).futureValue
@@ -161,7 +162,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       val mockContractsRepo = mock[ContractsRepository]
       when(mockContractsRepo.findById(999))
         .thenReturn(Future.successful(None))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.findById(999).futureValue
@@ -177,7 +178,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       val mockContractsRepo = mock[ContractsRepository]
       when(mockContractsRepo.findById(1))
         .thenReturn(Future.failed(new RuntimeException("Database error")))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.findById(1).futureValue
@@ -195,7 +196,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       val mockContractsRepo = mock[ContractsRepository]
       when(mockContractsRepo.deleteById(1))
         .thenReturn(Future.successful(1))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.delete(1).futureValue
@@ -212,7 +213,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       val mockContractsRepo = mock[ContractsRepository]
       when(mockContractsRepo.deleteById(999))
         .thenReturn(Future.successful(0))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act - id 999 doesn't exist
       val result = service.delete(999).futureValue
@@ -228,7 +229,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       val mockContractsRepo = mock[ContractsRepository]
       when(mockContractsRepo.deleteById(1))
         .thenReturn(Future.failed(new RuntimeException("Database error")))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.delete(1).futureValue
@@ -244,7 +245,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
     "return validation error when dto is invalid" in {
       // Arrange - setup mocks including invalid test data
       val mockContractsRepo = mock[ContractsRepository]
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
       val invalidDto = UpdateContractDto(
         contractType = Some(""), // invalid empty contract type
         startDate = None,
@@ -278,7 +279,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
         .thenReturn(Future.successful(Some(existingContract)))
       when(mockContractsRepo.update(anyInt(), any[ContractsModel]))
         .thenReturn(Future.successful(1))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.update(1, updateDto).futureValue
@@ -307,7 +308,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       )
       when(mockContractsRepo.findById(999))
         .thenReturn(Future.successful(None))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act - call service with non-existent ID
       val result = service.update(999, updateDto).futureValue
@@ -334,7 +335,7 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
         .thenReturn(Future.successful(Some(existingContract)))
       when(mockContractsRepo.update(anyInt(), any[ContractsModel]))
         .thenReturn(Future.failed(new RuntimeException("Database error")))
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
       // Act
       val result = service.update(1, updateDto).futureValue
@@ -346,9 +347,12 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
   }
 
   "ContractsService.search" should {
+    // TEST: Pagination
     "return paginated contracts" in {
       // Arrange
       val mockContractsRepo = mock[ContractsRepository]
+      val mockEmployeesRepo = mock[EmployeesRepository]
+
       val allContracts = (1 to 16).map { i =>
         ContractsModel(
           id = Some(i),
@@ -364,9 +368,9 @@ class ContractsServiceSpec extends PlaySpec with MockitoSugar with ScalaFutures 
       when(mockContractsRepo.listAll())
         .thenReturn(Future.successful(allContracts))
 
-      val service = new ContractsService(mockContractsRepo)
+      val service = new ContractsService(mockContractsRepo, mockEmployeesRepo)
 
-      // Act
+      // Act - gets first page with 5 items
       val result = service.search(
         contractType = None,
         q = None,
